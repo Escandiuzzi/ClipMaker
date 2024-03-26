@@ -7,7 +7,7 @@ namespace ClipMaker;
 
 static class Program
 {
-    public class Options
+    private class Options
     {
         [Option('u', "url", Required = true, HelpText = "Set the url of the video to be trimmed")]
         public string Url { get; set; }
@@ -18,23 +18,41 @@ static class Program
         [Option('e', "endtime", Required = true, HelpText = "Set the end time from the video to generate the clip - Expected format: hh-mm-ss")]
         public string EndTime { get; set; }
     }
+
+    private static string VideoUrl { get; set; } = "";
+    private static string StartTime { get; set; } = "";
+    private static string EndTime { get; set; } = "";
+    
+    private const string VideoDirectoryPath = "../../temp/";
+    private const string ClipDirectoryPath = "../../Clips/";
     
     static async Task Main(string[] args)
-    {
-        var videoUrl = "";
-        var startTime = "";
-        var endTime = "";
-        
+    {   
         Parser.Default.ParseArguments<Options>(args).WithParsed<Options>(o =>
         {
-            videoUrl = o.Url;
-            startTime = o.StartTime;
-            endTime = o.EndTime;
+            VideoUrl = o.Url;
+            StartTime = o.StartTime;
+            EndTime = o.EndTime;
         });
+
+        if (VideoUrl == "") return;
         
+        if (StartTime == "") return;
+        
+        if (EndTime == "") return;
+
+        var filePath = await DownloadVideoFromYoutube();
+        
+        ClipVideo(filePath);
+        
+        DeleteDirectory(VideoDirectoryPath);
+    }
+
+    private static async ValueTask<string> DownloadVideoFromYoutube()
+    {
         var youtube = new YoutubeClient();
         
-        var streamManifest = await youtube.Videos.Streams.GetManifestAsync(videoUrl);
+        var streamManifest = await youtube.Videos.Streams.GetManifestAsync(VideoUrl);
 
         var streamInfo = streamManifest
             .GetMuxedStreams()
@@ -52,20 +70,18 @@ static class Program
         
         await youtube.Videos.Streams.DownloadAsync(streamInfo, filePath);
 
-        ClipVideo(filePath, clipDirectoryPath, startTime, endTime);
-        
-        DeleteDirectory(videoDirectoryPath);
+        return filePath;
     }
-
-    private static void ClipVideo(string filePath, string clipDirectoryPath, string startTime, string endTime)
+    
+    private static void ClipVideo(string filePath)
     {
         const string ffmpegPath = "/opt/homebrew/Cellar/ffmpeg/6.1.1_6/bin/ffmpeg";
-        var outputFilePath = $"{clipDirectoryPath}/clip_{GenerateSlug()}.mp4"; 
+        var outputFilePath = $"{ClipDirectoryPath}/clip_{GenerateSlug()}.mp4"; 
         
         ProcessStartInfo startInfo = new()
         {
             FileName = ffmpegPath,
-            Arguments = $"-i \"{filePath}\" -ss {startTime} -to {endTime} -c:v copy -c:a copy \"{outputFilePath}\"",
+            Arguments = $"-i \"{filePath}\" -ss {StartTime} -to {EndTime} -c:v copy -c:a copy \"{outputFilePath}\"",
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
