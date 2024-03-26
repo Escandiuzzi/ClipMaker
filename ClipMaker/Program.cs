@@ -17,42 +17,58 @@ static class Program
 
         [Option('e', "endtime", Required = true, HelpText = "Set the end time from the video to generate the clip - Expected format: hh-mm-ss")]
         public string EndTime { get; set; }
+        
+        [Option('o', "outputdir", Required = false, HelpText = "Set the output directory for the clip")]
+        public string OutputDirectoryPath { get; set; }
+
+        [Option('t', "tempdir", Required = false, HelpText = "Set the temp directory for the video file")]
+        public string TempDirectoryPath { get; set; }
+
+        [Option('d', "delete", Required = false, HelpText = "Set if the temp directory should be deleted after clip created")]
+        public bool DeleteOnEnd { get; set; }
     }
 
-    private static string VideoUrl { get; set; } = "";
-    private static string StartTime { get; set; } = "";
-    private static string EndTime { get; set; } = "";
-    
-    private const string VideoDirectoryPath = "../../temp/";
-    private const string ClipDirectoryPath = "../../Clips/";
+    private static bool _deleteOnEnd;
+
+    private static string _videoUrl = "";
+    private static string _startTime = "";
+    private static string _endTime  = "";
+
+    private static string _videoDirectoryPath = "../../temp/";
+    private static string _clipDirectoryPath = "../../Clips/";
     
     static async Task Main(string[] args)
     {   
         Parser.Default.ParseArguments<Options>(args).WithParsed<Options>(o =>
         {
-            VideoUrl = o.Url;
-            StartTime = o.StartTime;
-            EndTime = o.EndTime;
+            _videoUrl = o.Url;
+            _startTime = o.StartTime;
+            _endTime = o.EndTime;
+
+            if (o.TempDirectoryPath != "") _videoDirectoryPath = o.TempDirectoryPath + "/Temp";
+            if (o.OutputDirectoryPath != "") _clipDirectoryPath = o.OutputDirectoryPath + "/Clips";
+            if (o.DeleteOnEnd) _deleteOnEnd = o.DeleteOnEnd;
+
         });
 
-        if (VideoUrl == "") return;
+        if (_videoUrl == "") return;
         
-        if (StartTime == "") return;
+        if (_startTime == "") return;
         
-        if (EndTime == "") return;
+        if (_endTime == "") return;
 
         var filePath = await DownloadVideoFromYoutube();
         
         ClipVideo(filePath);
         
-        DeleteDirectory(VideoDirectoryPath);
+        if (_deleteOnEnd) DeleteDirectory(_videoDirectoryPath);
     }
 
     private static async ValueTask<string> DownloadVideoFromYoutube()
     {
         var youtube = new YoutubeClient();
         
-        var streamManifest = await youtube.Videos.Streams.GetManifestAsync(VideoUrl);
+        var streamManifest = await youtube.Videos.Streams.GetManifestAsync(_videoUrl);
 
         var streamInfo = streamManifest
             .GetMuxedStreams()
@@ -61,12 +77,9 @@ static class Program
         
         await youtube.Videos.Streams.GetAsync(streamInfo);
 
-        const string videoDirectoryPath = "../../temp/";
-        const string clipDirectoryPath = "../../Clips/";
+        CreateFolders();
 
-        CreateFolder(videoDirectoryPath, clipDirectoryPath);
-
-        var filePath = $"{videoDirectoryPath}video.{streamInfo.Container}";
+        var filePath = $"{_videoDirectoryPath}video.{streamInfo.Container}";
         
         await youtube.Videos.Streams.DownloadAsync(streamInfo, filePath);
 
@@ -76,12 +89,12 @@ static class Program
     private static void ClipVideo(string filePath)
     {
         const string ffmpegPath = "/opt/homebrew/Cellar/ffmpeg/6.1.1_6/bin/ffmpeg";
-        var outputFilePath = $"{ClipDirectoryPath}/clip_{GenerateSlug()}.mp4"; 
+        var outputFilePath = $"{_clipDirectoryPath}/clip_{GenerateSlug()}.mp4"; 
         
         ProcessStartInfo startInfo = new()
         {
             FileName = ffmpegPath,
-            Arguments = $"-i \"{filePath}\" -ss {StartTime} -to {EndTime} -c:v copy -c:a copy \"{outputFilePath}\"",
+            Arguments = $"-i \"{filePath}\" -ss {_startTime} -to {_endTime} -c:v copy -c:a copy \"{outputFilePath}\"",
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -111,10 +124,10 @@ static class Program
         return slug;
     }
 
-    private static void CreateFolder(string videoDirectoryPath, string clipDirectoryPath)
+    private static void CreateFolders()
     {
-        if (!Directory.Exists(videoDirectoryPath)) Directory.CreateDirectory(videoDirectoryPath);
-        if (!Directory.Exists(clipDirectoryPath)) Directory.CreateDirectory(clipDirectoryPath);
+        if (!Directory.Exists(_videoDirectoryPath)) Directory.CreateDirectory(_videoDirectoryPath);
+        if (!Directory.Exists(_clipDirectoryPath)) Directory.CreateDirectory(_clipDirectoryPath);
     }
     
     private static void DeleteDirectory(string path)
