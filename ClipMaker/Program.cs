@@ -34,7 +34,7 @@ static class Program
     private static string _startTime = "";
     private static string _endTime  = "";
 
-    private static string _videoDirectoryPath = "../../temp/";
+    private static string _videoDirectoryPath = "../../Temp/";
     private static string _clipDirectoryPath = "../../Clips/";
     
     static async Task Main(string[] args)
@@ -45,10 +45,9 @@ static class Program
             _startTime = o.StartTime;
             _endTime = o.EndTime;
 
-            if (o.TempDirectoryPath != "") _videoDirectoryPath = o.TempDirectoryPath + "/Temp";
-            if (o.OutputDirectoryPath != "") _clipDirectoryPath = o.OutputDirectoryPath + "/Clips";
+            if (!string.IsNullOrWhiteSpace(o.TempDirectoryPath)) _videoDirectoryPath = o.TempDirectoryPath + "/Temp";
+            if (!string.IsNullOrWhiteSpace(o.OutputDirectoryPath)) _clipDirectoryPath = o.OutputDirectoryPath + "/Clips";
             if (o.DeleteOnEnd) _deleteOnEnd = o.DeleteOnEnd;
-
         });
 
         if (_videoUrl == "") return;
@@ -79,7 +78,7 @@ static class Program
 
         CreateFolders();
 
-        var filePath = $"{_videoDirectoryPath}video.{streamInfo.Container}";
+        var filePath = $"{_videoDirectoryPath}/video.{streamInfo.Container}";
         
         await youtube.Videos.Streams.DownloadAsync(streamInfo, filePath);
 
