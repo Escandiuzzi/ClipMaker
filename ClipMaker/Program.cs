@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using CommandLine;
+using Microsoft.Data.Sqlite;
 using YoutubeExplode;
 using YoutubeExplode.Videos.Streams;
 
@@ -28,6 +29,9 @@ static class Program
         public bool DeleteOnEnd { get; set; }
     }
 
+    private const string _videoDirectoryPathKey = "videoDirectoryPath";
+    private const string _clipDirectoryPathKey = "clipDirectoryPath";
+    
     private static bool _deleteOnEnd;
 
     private static string _videoUrl = "";
@@ -38,15 +42,29 @@ static class Program
     private static string _clipDirectoryPath = "../../Clips/";
     
     static async Task Main(string[] args)
-    {   
+    {
+        var data = InitDb();
+
+        if (data.ContainsKey(_videoDirectoryPathKey)) _videoDirectoryPath = data[_videoDirectoryPathKey];
+        if (data.ContainsKey(_clipDirectoryPathKey)) _clipDirectoryPath = data[_clipDirectoryPathKey];
+        
         Parser.Default.ParseArguments<Options>(args).WithParsed<Options>(o =>
         {
             _videoUrl = o.Url;
             _startTime = o.StartTime;
             _endTime = o.EndTime;
+            
+            if (!string.IsNullOrWhiteSpace(o.TempDirectoryPath))
+            {
+                _videoDirectoryPath = o.TempDirectoryPath + "/Temp";
+                SaveOptionsOnDB(_videoDirectoryPathKey , _videoDirectoryPath);
+            }
 
-            if (!string.IsNullOrWhiteSpace(o.TempDirectoryPath)) _videoDirectoryPath = o.TempDirectoryPath + "/Temp";
-            if (!string.IsNullOrWhiteSpace(o.OutputDirectoryPath)) _clipDirectoryPath = o.OutputDirectoryPath + "/Clips";
+            if (!string.IsNullOrWhiteSpace(o.OutputDirectoryPath))
+            {
+                _clipDirectoryPath = o.OutputDirectoryPath + "/Clips";
+                SaveOptionsOnDB(_clipDirectoryPathKey, _clipDirectoryPath);
+            }
             if (o.DeleteOnEnd) _deleteOnEnd = o.DeleteOnEnd;
         });
 
@@ -56,11 +74,71 @@ static class Program
         
         if (_endTime == "") return;
 
+        CreateFolders();
+        
         var filePath = await DownloadVideoFromYoutube();
         
         ClipVideo(filePath);
         
         if (_deleteOnEnd) DeleteDirectory(_videoDirectoryPath);
+    }
+
+    private static IDictionary<string, string> InitDb()
+    {
+        using var connection = new SqliteConnection("Data Source=clipmaker.db");
+        
+        connection.Open();
+
+        var command = connection.CreateCommand();
+        
+        command.CommandText =
+        @"
+            CREATE TABLE IF NOT EXISTS configs (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                data TEXT NOT NULL
+            );
+        ";
+
+        command.ExecuteNonQuery();
+
+        command.CommandText = " SELECT * from configs ";
+        
+        var reader = command.ExecuteReader();
+        
+        Dictionary<string, string> data = new();
+        
+        if (!reader.HasRows) return data;
+        
+        while(reader.Read())
+        {
+            var name = reader.GetString(1);
+            var value = reader.GetString(2);
+            data.Add(name, value);
+        }
+        
+        return data;
+    }
+    
+    private static void SaveOptionsOnDB(string name, string value)
+    {   
+        using var connection = new SqliteConnection("Data Source=clipmaker.db");
+        
+        connection.Open();
+
+        var command = connection.CreateCommand();
+        
+        var updateOrInsertQuery = @"
+            INSERT OR REPLACE INTO configs (name, data)
+            VALUES (@name, @data);";
+
+        command.CommandText = updateOrInsertQuery;
+        
+        // Add parameters
+        command.Parameters.AddWithValue("@name", name);
+        command.Parameters.AddWithValue("@data", value);
+
+        command.ExecuteNonQuery();
     }
 
     private static async ValueTask<string> DownloadVideoFromYoutube()
@@ -75,8 +153,6 @@ static class Program
             .GetWithHighestVideoQuality();
         
         await youtube.Videos.Streams.GetAsync(streamInfo);
-
-        CreateFolders();
 
         var filePath = $"{_videoDirectoryPath}/video.{streamInfo.Container}";
         
@@ -114,10 +190,8 @@ static class Program
 
     private static string GenerateSlug()
     {
-        // Format the DateTime object into a string
         var formattedDateTime = DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss");
 
-        // Replace any special characters with hyphens
         var slug = formattedDateTime.Replace(" ", "-").Replace(":", "-");
 
         return slug;
