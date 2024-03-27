@@ -1,6 +1,21 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
+        <!-- global tool related properties -->
+        <PackAsTool>true</PackAsTool>
+        <ToolCommandName>clip</ToolCommandName>
+        <PackageOutputPath>./nupkg</PackageOutputPath>
+
+        <!-- nuget related properties -->
+        <Authors>Luiz Felipe Escandiuzzi</Authors>
+        <Description>Tool to create clips from youtube videos</Description>
+        <Version>1.0.0</Version>
+        <Copyright>Copyright 2024 © Luiz Felipe Escandiuzzi. All rights reserved.</Copyright>
+        <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+        <RepositoryUrl>https://github.com/escandiuzzi/ClipMaker</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageType>DotNetCliTool</PackageType>
+        
         <OutputType>Exe</OutputType>
         <TargetFramework>net8.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
